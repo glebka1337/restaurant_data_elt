@@ -1,0 +1,23 @@
+name: 'restaurant_analytics'
+version: '1.0.0'
+config-version: 2
+
+profile: 'restaurant_pipeline'
+
+model-paths: ["models"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  restaurant_analytics:
+
+    staging:
+      +schema: staging 
+      +materialized: view
+
+    mart:
+      +schema: analytics 
+      +materialized: table
