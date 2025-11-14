@@ -1,9 +1,12 @@
 # api/app/main.py
+import uuid
 from fastapi import FastAPI
-from typing import List
+from typing import Any, Dict, List
+import random
 
-from .generator import generate_fake_orders
-from .schemas import Order
+from .fake_db import USERS_DB as user_fake_db
+from .generator import generate_fake_orders, fake
+from .schemas import Order, User
 
 app = FastAPI(
     title="Restaurant Source API",
@@ -24,3 +27,20 @@ def get_new_orders(batch_size: int = 100):
     """
     orders = generate_fake_orders(batch_size=batch_size)
     return orders
+
+@app.get("/api/v1/new_users")
+def get_new_users() -> List[User]:
+    num = random.randint(1, 6)
+    
+    return [
+        User(
+            user_id=uuid.uuid4(),
+            email=fake.unique.email(),
+            username=fake.user_name()
+        )
+        for i in range(num)
+    ]   
+    
+@app.get("/api/v1/users/snapshot", response_model=List[User])
+def get_all_users_snapshot() -> List[Dict[str, Any]]:
+    return user_fake_db

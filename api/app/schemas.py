@@ -12,9 +12,14 @@ class Item(BaseModel):
 
 class Order(BaseModel):
     order_id: uuid.UUID 
-    user_id: int        
+    user_id: uuid.UUID        
     restaurant_id: int  
     status: str
     created_at: datetime
     items: List[Item]
     total_price: float
+    
+class User(BaseModel):
+    user_id: uuid.UUID
+    email: str
+    username: str

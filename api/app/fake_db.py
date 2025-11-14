@@ -1,12 +1,12 @@
 # api/app/fake_db.py
 from faker import Faker
 import random
-
+import uuid
 fake = Faker()
 
 USERS_DB = [
     {
-        "user_id": i + 1,
+        "user_id": uuid.uuid4(),
         "email": fake.unique.email(),
         "username": fake.user_name()
     }
