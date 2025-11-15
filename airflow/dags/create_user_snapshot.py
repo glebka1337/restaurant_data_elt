@@ -7,43 +7,43 @@ from utils.config_loader import get_pipeline_config
 from utils.elt_tasks import extract_to_s3, load_s3_to_postgres
 
 @dag(
-    dag_id="restaurant_order_pipeline",
+    dag_id="user_snapshot_pipeline",
     start_date=pendulum.datetime(2025, 11, 11, tz="UTC"),
-    schedule_interval=timedelta(minutes=5),
+    schedule_interval="@daily",
     catchup=False,
-    tags=["elt", "dbt", "s3", "minio", "orders"]
+    tags=["elt", "dbt", "s3", "minio", "users"]
 )
-def restaurant_elt_pipeline():
+def user_snapshot_pipeline():
 
     @task(task_id="load_config")
     def load_config():
         return get_pipeline_config()
 
-    @task(task_id="extract_new_orders")
-    def extract_new_orders(config: dict):
+    @task(task_id="extract_users_snapshot")
+    def extract_users_snapshot(config: dict):
         return extract_to_s3(
-            api_url=config["API_ORDERS_URL"],
+            api_url=config["API_USERS_URL"],
             s3_conn_id=config["S3_CONN_ID"],
             s3_bucket_name=config["S3_BUCKET_NAME"],
-            s3_key_prefix="raw/orders",
-            api_params={"batch_size": 100}
+            s3_key_prefix="raw/user_snapshot",
+            api_params=None
         )
 
-    @task(task_id="load_orders_to_db")
-    def load_orders_to_db(s3_info: dict, config: dict):
+    @task(task_id="load_users_snapshot")
+    def load_users_snapshot(s3_info: dict, config: dict):
         if s3_info is None:
-            print("[INFO] Nothing to load.")
+            print("[INFO] No data – skip load.")
             return
         load_s3_to_postgres(
             s3_info=s3_info,
             config=config,
-            target_schema=config["SCHEMA_RAW_ORDERS"],
-            target_table="staging_raw_orders",
-            load_method="append"
+            target_schema=config["SCHEMA_RAW_USERS"],
+            target_table="staging_raw_users",
+            load_method="truncate"
         )
 
     @task(task_id="export_dbt_env")
-    def export_dbt_env(config: dict) -> dict:
+    def export_dbt_env() -> dict:
         return {
             "POSTGRES_USER":     Variable.get("POSTGRES_USER"),
             "POSTGRES_PASSWORD": Variable.get("POSTGRES_PASSWORD"),
@@ -54,17 +54,16 @@ def restaurant_elt_pipeline():
         }
 
     @task.virtualenv(
-        task_id="transform_dbt_isolated",
+        task_id="transform_dbt_users_isolated",
         requirements=["dbt-postgres==1.8.2"],
         system_site_packages=False
     )
-    def transform_dbt_in_venv(env_vars: dict):
+    def transform_dbt_users_isolated(env_vars: dict):
         import os
         from dbt.cli.main import cli as dbt_cli
-
         for k, v in env_vars.items():
             os.environ[k] = v
-
+        
         try:
             dbt_cli.main(["run", "--project-dir", "/opt/airflow/dbt"])
         except SystemExit as e:
@@ -74,13 +73,13 @@ def restaurant_elt_pipeline():
 
     @task_group(group_id="elt_stage")
     def elt_group(config_data):
-        s3_info = extract_new_orders(config_data)
-        load_orders_to_db(s3_info, config_data)
+        s3_info = extract_users_snapshot(config_data)
+        load_users_snapshot(s3_info, config_data)
 
     config_data = load_config()
-    env_data    = export_dbt_env(config_data)
+    env_data    = export_dbt_env()
     elt_instance = elt_group(config_data)
-    dbt_instance = transform_dbt_in_venv(env_data)
+    dbt_instance = transform_dbt_users_isolated(env_data)
     elt_instance >> dbt_instance
 
-restaurant_elt_pipeline()
+user_snapshot_pipeline()

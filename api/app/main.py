@@ -42,5 +42,12 @@ def get_new_users() -> List[User]:
     ]   
     
 @app.get("/api/v1/users/snapshot", response_model=List[User])
-def get_all_users_snapshot() -> List[Dict[str, Any]]:
-    return user_fake_db
+def get_all_users_snapshot() -> List[User]:
+    return [
+        User(
+            user_id=user["user_id"],
+            email=user["email"],
+            username=user["username"]
+        )
+        for user in user_fake_db
+    ]
